@@ -1,0 +1,12 @@
+langchain-openai
+langchain
+langgraph<0.5
+langgraph-prebuilt<0.5
+
+pandas
+numpy
+
+fastapi
+
+unstructured[all-docs]
+PyMuPDF
