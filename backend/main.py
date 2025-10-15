@@ -5,17 +5,19 @@ from pydantic_models import QueryInput, QueryResponse, DocumentInfo, DeleteFileR
 from db_utils import insert_chat_history, get_chat_history, get_all_documents, insert_document_record, delete_document_record
 from documents_loaders import index_document_to_chroma, delete_doc_from_chroma
 from agent import agent
-from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
+from langchain_core.messages import HumanMessage, AIMessage
 import logging
 import shutil
 from utils import get_or_create_session_id, history_to_lc_messages, append_message
 from langchain_utils import contextualise_chain
 from fastapi import UploadFile, File, HTTPException
+import sqlite3
 
 
 logging.basicConfig(filename='app.log', level=logging.INFO)
 app = FastAPI()
 load_dotenv(override=True)
+DB_PATH = "rag_app.db"
 
 @app.post("/chat", response_model=QueryResponse)
 def chat(query_input: QueryInput):
@@ -59,6 +61,17 @@ def chat(query_input: QueryInput):
         logging.error(f"Error in chat: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Chat error: {str(e)}")
 
+
+
+@app.get("/sessions")
+def get_sessions():
+    """Return all distinct session_ids from chat_history"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT DISTINCT session_id FROM chat_history ORDER BY id DESC;")
+    sessions = [row[0] for row in cursor.fetchall()]
+    conn.close()
+    return {"sessions": sessions}
 
 @app.post("/upload-doc")
 def upload_and_index_document(file: UploadFile = File(...)):
