@@ -5,7 +5,7 @@ from langchain_core.messages import BaseMessage
 
 # Structured output models for LLM nodes
 class RouteDecision(BaseModel):
-    route: Literal["rag", "answer", "end"]
+    route: Literal["rag", "answer", "end", "interview"]
     reply: str | None = Field(None, description="Filled only when route == 'end'")
 
 class RagJudge(BaseModel):

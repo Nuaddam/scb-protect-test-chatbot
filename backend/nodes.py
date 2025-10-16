@@ -11,6 +11,8 @@ def router_node(state: AgentState) -> AgentState:
         "- Use 'end' for pure greetings/small-talk (also provide a 'reply') and answer that is already in the current conversation chat history\n"
         "- Use 'rag' when knowledge base lookup is needed\n"
         "- Use 'answer' when you can answer directly without external info"
+        "- Use 'interview' when the user expresses interest in buying, applying for, "
+        "or asking about a product, service, or offer — where you should collect user details."
     )
     messages = [SystemMessage(content=system_prompt)] + state["messages"]
     result: RouteDecision = router_llm.invoke(messages)

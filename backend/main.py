@@ -20,7 +20,7 @@ load_dotenv(override=True)
 DB_PATH = "rag_app.db"
 
 @app.post("/chat", response_model=QueryResponse)
-def chat(query_input: QueryInput):
+async def chat(query_input: QueryInput):
     """Endpoint to handle chat queries."""
     session_id = get_or_create_session_id(query_input.session_id)
     logging.info(f"Session ID: {session_id}, User Query: {query_input.question}, Model: {query_input.model.value}")
@@ -38,7 +38,7 @@ def chat(query_input: QueryInput):
         })
 
         messages = append_message(messages, HumanMessage(content=standalone_q))
-        result = agent.invoke(
+        result = await agent.ainvoke(
             {"messages": messages}
         )
 

@@ -2,7 +2,6 @@
 .env
 notebook
 app.log
-mcpserver
 rag_app.db
 __pycache__/
 .DS_Store
