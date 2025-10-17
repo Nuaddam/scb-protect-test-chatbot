@@ -23,3 +23,12 @@ class DocumentInfo(BaseModel):
 
 class DeleteFileRequest(BaseModel):
     file_id: int
+    
+class ProductInterest(BaseModel):
+    """Structured product interest data."""
+    name: str = Field(..., description="Customer name")
+    age: int = Field(..., description="Customer age")
+    occupation: str = Field(..., description="Customer occupation")
+    income: int = Field(..., description="Customer monthly income")
+    product_name: str = Field(..., description="Customer product of interest")
+    memo: str = Field("", description="Extra notes from customer")

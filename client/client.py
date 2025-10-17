@@ -17,49 +17,7 @@ st.session_state.setdefault("session_id", str(uuid.uuid4()))
 st.session_state.setdefault("chat_history", [])
 
 # # SESSION HANDLING
-st.sidebar.header("💬 Chat Session")
-
-# Try to load available sessions
-try:
-    response = requests.get(SESSIONS_ENDPOINT)
-    existing_sessions = response.json().get("sessions", [])
-except Exception as e:
-    existing_sessions = []
-    st.sidebar.error(f"Failed to fetch sessions: {e}")
-
-# Select session
-selected_session = st.sidebar.selectbox(
-    "Select previous session", ["New session"] + existing_sessions
-)
-
-# Initialize session ID
-if "session_id" not in st.session_state:
-    st.session_state["session_id"] = str(uuid.uuid4())
-
-# If new session → generate new session_id
-if selected_session == "New session":
-    st.session_state["session_id"] = str(uuid.uuid4())
-    st.session_state["chat_history"] = []
-
-else:
-    st.session_state["session_id"] = selected_session
-    # Load chat history for selected session
-    try:
-        r = requests.get(f"{HISTORY_ENDPOINT}/{selected_session}")
-        if r.status_code == 200:
-            data = r.json()
-            st.session_state["chat_history"] = []
-            for h in data.get("history", []):
-                st.session_state["chat_history"].append({"role": "user", "content": h["user"]})
-                st.session_state["chat_history"].append({"role": "assistant", "content": h["assistant"]})
-        else:
-            st.sidebar.warning("Could not load chat history.")
-    except Exception as e:
-        st.sidebar.error(f"Error loading history: {e}")
-
-# --- SESSION HANDLING ---
 # st.sidebar.header("💬 Chat Session")
-
 
 # # Try to load available sessions
 # try:
@@ -69,25 +27,23 @@ else:
 #     existing_sessions = []
 #     st.sidebar.error(f"Failed to fetch sessions: {e}")
 
-# # Let user pick
+# # Select session
 # selected_session = st.sidebar.selectbox(
 #     "Select previous session", ["New session"] + existing_sessions
 # )
 
-# # ✅ Ensure session_id always exists
+# # Initialize session ID
 # if "session_id" not in st.session_state:
 #     st.session_state["session_id"] = str(uuid.uuid4())
 
-# # ✅ New session only if NOT in middle of interview
+# # If new session → generate new session_id
 # if selected_session == "New session":
-#     if not st.session_state.get("awaiting_reply", False):
-#         st.session_state["awaiting_reply"] = False
-#         st.session_state["session_id"] = str(uuid.uuid4())
-#         st.session_state["chat_history"] = []
+#     st.session_state["session_id"] = str(uuid.uuid4())
+#     st.session_state["chat_history"] = []
+
 # else:
-#     # ✅ Use selected session_id (only real IDs)
 #     st.session_state["session_id"] = selected_session
-#     # Load history
+#     # Load chat history for selected session
 #     try:
 #         r = requests.get(f"{HISTORY_ENDPOINT}/{selected_session}")
 #         if r.status_code == 200:
@@ -101,9 +57,56 @@ else:
 #     except Exception as e:
 #         st.sidebar.error(f"Error loading history: {e}")
 
+# --- SESSION HANDLING ---
+st.sidebar.header("💬 Chat Session")
+
+
+# Try to load available sessions
+try:
+    response = requests.get(SESSIONS_ENDPOINT)
+    existing_sessions = response.json().get("sessions", [])
+except Exception as e:
+    existing_sessions = []
+    st.sidebar.error(f"Failed to fetch sessions: {e}")
+
+# Let user pick
+selected_session = st.sidebar.selectbox(
+    "Select previous session", ["New session"] + existing_sessions
+)
+
+# ✅ Ensure session_id always exists
+if "session_id" not in st.session_state:
+    st.session_state["session_id"] = str(uuid.uuid4())
+
+# ✅ New session only if NOT in middle of interview
+if selected_session == "New session":
+    # ⚠️ Only start a new session if we're not in the middle of an interview
+    if not st.session_state.get("awaiting_reply", False):
+        if "session_id" not in st.session_state or not st.session_state["chat_history"]:
+            st.session_state["session_id"] = str(uuid.uuid4())
+            st.session_state["chat_history"] = []
+    else:
+        st.sidebar.info("🕐 Continuing existing session — interview in progress.")
+else:
+    # ✅ Use selected session_id (only real IDs)
+    st.session_state["session_id"] = selected_session
+    # Load history
+    try:
+        r = requests.get(f"{HISTORY_ENDPOINT}/{selected_session}")
+        if r.status_code == 200:
+            data = r.json()
+            st.session_state["chat_history"] = []
+            for h in data.get("history", []):
+                st.session_state["chat_history"].append({"role": "user", "content": h["user"]})
+                st.session_state["chat_history"].append({"role": "assistant", "content": h["assistant"]})
+        else:
+            st.sidebar.warning("Could not load chat history.")
+    except Exception as e:
+        st.sidebar.error(f"Error loading history: {e}")
+
 # ✅ Debug info in sidebar
 st.sidebar.info(f"📎 Current session ID: {st.session_state['session_id']}")
-
+st.caption(f"💬 Current session: `{st.session_state['session_id']}`")
 
 # FILE UPLOAD
 st.sidebar.subheader("Upload Documents")
@@ -145,7 +148,6 @@ if prompt:
         "question": prompt,
         "session_id": st.session_state["session_id"],
         "model": "gpt-4.1-mini",
-        "resume": st.session_state.get("awaiting_reply", False),
     }
 
     # Send to backend
@@ -165,6 +167,8 @@ if prompt:
                     answer = f"🤖 {answer}"  # show the question
                     st.session_state["awaiting_reply"] = True
                 else:
+                    st.session_state["awaiting_reply"] = False
+                if "✅ Logged interest" in answer:
                     st.session_state["awaiting_reply"] = False
             else:
                 answer = f"⚠️ Error: {response.text}"

@@ -7,6 +7,8 @@ from shared import AgentState
 
 # Routing functions for conditional edges
 def from_router(st: AgentState) -> Literal["rag", "answer", "end"]:
+    if st.get("awaiting_field"):
+        return "interview"
     return st["route"]
 
 def after_rag(st: AgentState) -> Literal["answer", "web"]:

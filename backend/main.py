@@ -18,47 +18,107 @@ logging.basicConfig(filename='app.log', level=logging.INFO)
 app = FastAPI()
 load_dotenv(override=True)
 DB_PATH = "rag_app.db"
+SESSION_STORE: dict[str, dict] = {}
+
+# @app.post("/chat", response_model=QueryResponse)
+# async def chat(query_input: QueryInput):
+#     """Endpoint to handle chat queries."""
+#     session_id = get_or_create_session_id(query_input.session_id)
+#     logging.info(f"Session ID: {session_id}, User Query: {query_input.question}, Model: {query_input.model.value}")
+
+#     try:
+#         # Convert chat history to LangChain messages
+#         chat_history = get_chat_history(session_id)
+#         messages = history_to_lc_messages(chat_history)
+
+
+#         # Generate a stand-alone question
+#         standalone_q = contextualise_chain.invoke({
+#             "chat_history": messages,
+#             "input": query_input.question,
+#         })
+
+#         messages = append_message(messages, HumanMessage(content=standalone_q))
+#         result = await agent.ainvoke(
+#             {"messages": messages}
+#         )
+
+#         # Get the last AI message
+#         last_message = next((m for m in reversed(result["messages"])
+#                            if isinstance(m, AIMessage)), None)
+
+#         if last_message:
+#             answer = last_message.content
+#         else:
+#             answer = "I apologize, but I couldn't generate a response at this time."
+
+#         # Store the conversation
+#         insert_chat_history(session_id, query_input.question, answer, query_input.model.value)
+#         logging.info(f"Session ID: {session_id}, AI Response: {answer}")
+
+#         return QueryResponse(answer=answer, session_id=session_id, model=query_input.model)
+
+#     except Exception as e:
+#         logging.error(f"Error in chat: {str(e)}")
+#         raise HTTPException(status_code=500, detail=f"Chat error: {str(e)}")
+
+SESSION_STORE: dict[str, dict] = {}
+
+def get_state(session_id):
+    return SESSION_STORE.setdefault(session_id, {"messages": []})
+
+def save_state(session_id, state):
+    SESSION_STORE[session_id] = state
 
 @app.post("/chat", response_model=QueryResponse)
 async def chat(query_input: QueryInput):
-    """Endpoint to handle chat queries."""
     session_id = get_or_create_session_id(query_input.session_id)
-    logging.info(f"Session ID: {session_id}, User Query: {query_input.question}, Model: {query_input.model.value}")
+    state = get_state(session_id)
 
+    user_input = query_input.question
+    state["messages"].append(HumanMessage(content=user_input))
+
+    # ✅ If we were waiting for confirmation
+    if state.get("awaiting_confirmation"):
+        logging.info("🧠 Continuing interview confirmation flow")
+        result = await agent.ainvoke(state, start_at="interview")
+    else:
+        result = await agent.ainvoke(state)
+
+    save_state(session_id, result)
     try:
-        # Convert chat history to LangChain messages
-        chat_history = get_chat_history(session_id)
-        messages = history_to_lc_messages(chat_history)
+        # Load state for this session
+        state = get_state(session_id)
+        user_input = query_input.question
 
-
-        # Generate a stand-alone question
-        standalone_q = contextualise_chain.invoke({
-            "chat_history": messages,
-            "input": query_input.question,
-        })
-
-        messages = append_message(messages, HumanMessage(content=standalone_q))
-        result = await agent.ainvoke(
-            {"messages": messages}
-        )
-
-        # Get the last AI message
-        last_message = next((m for m in reversed(result["messages"])
-                           if isinstance(m, AIMessage)), None)
-
-        if last_message:
-            answer = last_message.content
+        # 🧠 Handle ongoing interview
+        if state.get("awaiting_field"):
+            field = state["awaiting_field"]
+            state.setdefault("customer_data", {})[field] = user_input
+            state["awaiting_field"] = None
+            state["messages"].append(HumanMessage(content=user_input))
+            result = await agent.ainvoke(state, start_at="interview")
         else:
-            answer = "I apologize, but I couldn't generate a response at this time."
+            # Normal flow
+            chat_history = get_chat_history(session_id)
+            messages = history_to_lc_messages(chat_history)
+            messages = append_message(messages, HumanMessage(content=user_input))
+            result = await agent.ainvoke({"messages": messages})
+        
+        
 
-        # Store the conversation
-        insert_chat_history(session_id, query_input.question, answer, query_input.model.value)
+        # Extract last AI message
+        last_msg = next((m for m in reversed(result["messages"]) if isinstance(m, AIMessage)), None)
+        answer = last_msg.content if last_msg else "I couldn't respond."
+
+        save_state(session_id, result)
+        insert_chat_history(session_id, user_input, answer, query_input.model.value)
         logging.info(f"Session ID: {session_id}, AI Response: {answer}")
 
         return QueryResponse(answer=answer, session_id=session_id, model=query_input.model)
 
     except Exception as e:
-        logging.error(f"Error in chat: {str(e)}")
+        logging.exception("Error in chat")
         raise HTTPException(status_code=500, detail=f"Chat error: {str(e)}")
 
 

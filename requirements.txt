@@ -13,4 +13,4 @@ fastapi
 uvicorn
 pydantic
 python-dotenv
-langchain-mcp-adapters
+langchain-mcp
