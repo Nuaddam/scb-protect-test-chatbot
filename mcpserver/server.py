@@ -16,10 +16,7 @@ def log_product_interest(
     product_name: str,
     memo: str = ""
 ) -> dict:
-    """
-    Log a user’s interest in a product by writing to CSV.
-    Returns a dict with status message.
-    """
+    """Save user data to csv bu tool calling mcp"""
     DATA_PATH = "data/interested_users.csv"
     os.makedirs(os.path.dirname(DATA_PATH), exist_ok=True)
     file_exists = os.path.exists(DATA_PATH)
